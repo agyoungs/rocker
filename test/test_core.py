@@ -17,6 +17,8 @@
 
 import argparse
 import em
+import os
+import pwd
 import pytest
 import unittest
 
@@ -26,6 +28,7 @@ from rocker.core import DockerImageGenerator
 from rocker.core import list_plugins
 from rocker.core import get_docker_client
 from rocker.core import get_rocker_version
+from rocker.core import get_user_name
 from rocker.core import RockerExtension
 from rocker.core import RockerExtensionManager
 from rocker.core import ExtensionError
@@ -223,6 +226,26 @@ class RockerCoreTest(unittest.TestCase):
             self.assertNotIn('-it', dig.generate_docker_cmd(mode='interactive'))
 
         self.assertNotIn('-it', dig.generate_docker_cmd(mode='non-interactive'))
+
+    def test_docker_user_detection(self):
+        userinfo = pwd.getpwuid(os.getuid())
+        username_detected =  getattr(userinfo, 'pw_' + 'name')
+        self.assertEqual(username_detected, get_user_name())
+
+    def test_docker_user_setting(self):
+        parser = argparse.ArgumentParser()
+        extension_manager = RockerExtensionManager()
+        default_args = {}
+        extension_manager.extend_cli_parser(parser, default_args)
+        active_extensions = extension_manager.get_active_extensions({'user': True, 'extension_blacklist': ['ssh']})
+        dig = DockerImageGenerator(active_extensions, {'user_override_name': 'foo'}, 'ubuntu:bionic')
+
+        self.assertIn('USER root', dig.dockerfile)
+        self.assertNotIn('USER foo', dig.dockerfile)
+        dig = DockerImageGenerator(active_extensions, {'user': True, 'user_override_name': 'foo'}, 'ubuntu:bionic')
+        self.assertIn('USER root', dig.dockerfile)
+        self.assertIn('USER foo', dig.dockerfile)
+
 
     def test_docker_cmd_nocleanup(self):
         dig = DockerImageGenerator([], {}, 'ubuntu:bionic')
