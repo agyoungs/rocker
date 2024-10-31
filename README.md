@@ -38,6 +38,7 @@ You can get full details on the extensions from the main `rocker --help` command
 - pulse -- Mount pulse audio into the container
 - ssh -- Pass through ssh access to the container.
 - install_pkgs -- Install a list of additional packages not in the base image
+- bashrc_extensions -- Pass a list of files/URLs of bash scripts that will extend the container's native .bashrc
 
 As well as access to many of the docker arguments as well such as `device`, `env`, `volume`, `name`, `network`, `ipc`, and `privileged`.
 
