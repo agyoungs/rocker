@@ -6,12 +6,12 @@ from setuptools import setup
 # importlib-metadata dependency can be removed when RHEL8 and other 3.6 based systems are not in support cycles
 
 install_requires = [
+    'ConfigArgParse',
     'empy',
     'importlib-metadata; python_version < "3.8"',
     'pexpect',
     'packaging',
     'urllib3',
-    'pyyaml',
 ]
 
 # docker API used to be in a package called `docker-py` before the 2.0 release

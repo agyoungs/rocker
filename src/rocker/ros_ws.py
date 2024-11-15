@@ -1,68 +1,81 @@
-import em
+"""Extension for handling ROS workspaces in Rocker containers."""
+
 import copy
-import pkgutil
-import getpass
 import os
+import tempfile
+import xml.etree.ElementTree as ET
+import pkgutil
+
+import em
+from vcstools import VcsClient
+
 from rocker.core import get_user_name
 from rocker.extensions import RockerExtension
 from rocker.volume_extension import Volume
-import tempfile
-from vcstools import VcsClient
-import xml.etree.ElementTree as ET
-import yaml
 
 
 class RosWs(RockerExtension):
+    """
+    Extension for handling ROS workspaces in Rocker containers.
+
+    This extension enables mounting and building ROS workspaces inside Docker
+    containers, with support for dependency management and workspace
+    configuration.
+    """
 
     name = "ros_ws"
 
     @classmethod
     def get_name(cls):
+        """Return the extension's name."""
         return cls.name
 
     def __init__(self):
+        """Initialize the extension."""
         self._env_subs = None
         self.name = RosWs.get_name()
-    
+   
     @staticmethod
     def is_workspace_volume(workspace):
+        """Check if the workspace is a valid volume."""
         if os.path.isdir(os.path.expanduser(workspace)):
             return True
         else:
             return False
 
-    def get_docker_args(self, cli_args):
-        """
-        @param cli_args: {'volume': [[%arg%]]}
-            - 'volume' is fixed.
-            - %arg% can be:
-               - %path_host%: a path on the host. Same path will be populated in
-                   the container.
-               - %path_host%:%path_cont%
-               - %path_host%:%path_cont%:%option%
-        """
-        workspace = cli_args[self.name]
+    def get_docker_args(self, cliargs):
+        """Get Docker arguments for mounting the workspace volume."""
+        workspace = cliargs[self.name]
         if RosWs.is_workspace_volume(workspace):
-            args = Volume.get_volume_args([[os.path.expanduser(workspace) + ":" + os.path.join(RosWs.get_home_dir(cli_args), self.name, 'src')]])
+            args = Volume.get_volume_args(
+                [[os.path.expanduser(workspace) + ":" +
+                  os.path.join(RosWs.get_home_dir(cliargs),
+                               self.name, 'src')]])
             return ' '.join(args)
         else:
             return ''
 
-    def precondition_environment(self, cli_args):
+    def precondition_environment(self, cliargs):
+        """Prepare the environment before running the container."""
         pass
 
-    def validate_environment(self, cli_args):
+    def validate_environment(self, cliargs):
+        """Validate the environment before running the container."""
         pass
 
-    def get_preamble(self, cli_args):
+    def get_preamble(self, cliargs):
+        """Return the preamble for the Dockerfile."""
         return ""
 
-    def get_files(self, cli_args):
-        def get_files_from_path(path, only_ros_pacakges=False, is_ros_package=False):
+    def get_files(self, cliargs):
+        """Get the files to be included in the Docker build context."""
+        def get_files_from_path(path,
+                                only_ros_pacakges=False,
+                                is_ros_package=False):
             if os.path.isdir(path):
-                if (
-                    not os.path.basename(path) == ".git"
-                ):  # ignoring the .git directory allows the docker build context to cache the build context if the directories haven't been modified
+                # ignoring the .git directory allows the docker build context
+                # to cache the build context if the directories weren't modified
+                if (not os.path.basename(path) == ".git"):
                     if not is_ros_package:
                         is_ros_package = os.path.exists(os.path.join(path, 'package.xml'))
                     for basename in os.listdir(path):
@@ -89,7 +102,7 @@ class RosWs(RockerExtension):
                         ws_files[filepath.replace(os.path.expanduser(dir), "ros_ws_src" + os.path.sep)] = f.read()
             return ws_files
 
-        workspace = cli_args[self.name]
+        workspace = cliargs[self.name]
         if self.is_workspace_volume(workspace):
             return generate_ws_files(workspace, only_ros_pacakges=True)
         else:
@@ -100,7 +113,7 @@ class RosWs(RockerExtension):
             raise ValueError("Workspace file not currently supported")
 
             with tempfile.TemporaryDirectory() as td:
-                workspace_file = cli_args[self.name]
+                workspace_file = cliargs[self.name]
                 with open(workspace_file, "r") as f:
                     repos = yaml.safe_load(f)
                     for repo in repos:
@@ -157,17 +170,17 @@ class RosWs(RockerExtension):
         return sorted(deps - src_packages)
 
     @staticmethod
-    def get_home_dir(cli_args):
-        if cli_args["user"]:
+    def get_home_dir(cliargs):
+        if cliargs["user"]:
             return os.path.join(os.path.sep, "home", get_user_name())
         else:
             return os.path.join(os.path.sep, "root")
 
-    def get_snippet(self, cli_args):
+    def get_snippet(self, cliargs):
         args = {}
-        args["home_dir"] = RosWs.get_home_dir(cli_args)
-        args["rosdeps"] = RosWs.get_rosdeps(cli_args[self.name])
-        args["install_deps"] = cli_args["ros_ws_install_deps"]
+        args["home_dir"] = RosWs.get_home_dir(cliargs)
+        args["rosdeps"] = RosWs.get_rosdeps(cliargs[self.name])
+        args["install_deps"] = cliargs["ros_ws_install_deps"]
 
         snippet = pkgutil.get_data(
             "rocker",
@@ -175,14 +188,14 @@ class RosWs(RockerExtension):
         ).decode("utf-8")
         return em.expand(snippet, args)
     
-    def get_user_snippet(self, cli_args):
+    def get_user_snippet(self, cliargs):
         args = {}
-        args["home_dir"] = RosWs.get_home_dir(cli_args)
-        args["rosdeps"] = RosWs.get_rosdeps(cli_args[self.name])
-        args["build_source"] = cli_args["ros_ws_build_source"]
-        args["install_deps"] = cli_args["ros_ws_install_deps"]
-        args["ros_master_uri"] = cli_args["ros_ws_ros_master_uri"]
-        args["build_tool_args"] = cli_args["ros_ws_build_tool_args"]
+        args["home_dir"] = RosWs.get_home_dir(cliargs)
+        args["rosdeps"] = RosWs.get_rosdeps(cliargs[self.name])
+        args["build_source"] = cliargs["ros_ws_build_source"]
+        args["install_deps"] = cliargs["ros_ws_install_deps"]
+        args["ros_master_uri"] = cliargs["ros_ws_ros_master_uri"]
+        args["build_tool_args"] = cliargs["ros_ws_build_tool_args"]
 
         snippet = pkgutil.get_data(
             "rocker",

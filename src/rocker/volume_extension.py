@@ -45,7 +45,7 @@ class Volume(RockerExtension):
 
         for volume in volumes:
             elems = volume.split(':')
-            host_dir = os.path.abspath(elems[0])
+            host_dir = os.path.abspath(os.path.expanduser(elems[0]))
             if len(elems) == 1:
                 args.append('{0} {1}:{1}'.format(cls.ARG_DOCKER_VOLUME, host_dir))
             elif len(elems) == 2:

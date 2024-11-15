@@ -12,10 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import argparse
+import configargparse
 import os
 import sys
-import yaml
 
 from .core import DockerImageGenerator
 from .core import get_rocker_version
@@ -28,15 +27,17 @@ from .os_detector import detect_os
 
 def main():
 
-    parser = argparse.ArgumentParser(
+    parser = configargparse.ArgumentParser(
         description='A tool for running docker with extra options',
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+        formatter_class=configargparse.ArgumentDefaultsHelpFormatter,
+        ignore_unknown_config_file_keys=False)
     parser.add_argument('image')
     parser.add_argument('command', nargs='*', default='')
-    parser.add_argument('--config', help='''Optional yaml file to handle command line arguments 
-        (except positional args) as a config file. This config will override any other command line 
-        arguments of the same name as the yaml keys (e.g. "--user-override-name" would have the key 
-        "user_override_name" in the config file)''')
+    parser.add_argument('-c', '--config', is_config_file=True,
+        help='''Optional congig file to handle command line arguments (except positional args)
+                as a config file. Any setting in the config file will be overriden by the
+                command line arguments of the same name (e.g. '--user-override-name' would
+                override the key 'user_override_name' in the config file)''')
     parser.add_argument('--noexecute', action='store_true', help='Deprecated')
     parser.add_argument('--nocache', action='store_true')
     parser.add_argument('--nocleanup', action='store_true', help='do not remove the docker container when stopped')
@@ -54,12 +55,8 @@ def main():
 
     args = parser.parse_args()
     args_dict = vars(args)
-
-    # Load config file if provided
-    if args.config:
-        with open(args.config, 'r') as f:
-            config = yaml.safe_load(f)
-        args_dict.update(config)
+    print(args)
+    print(args_dict)
 
     if args.noexecute:
         from .core import OPERATIONS_DRY_RUN
@@ -86,7 +83,7 @@ def main():
 
 
 def detect_image_os():
-    parser = argparse.ArgumentParser(description='Detect the os in an image')
+    parser = configargparse.ArgumentParser(description='Detect the os in an image')
     parser.add_argument('image')
     parser.add_argument('--verbose', action='store_true',
         help='Display verbose output of the process')
